@@ -19,7 +19,7 @@ const EXTRA_FULL = [
 
 const manifest = {
   id: 'community.1phim6.com',
-  version: '1.2.0',
+  version: '1.3.0',
   name: '1Phim6',
   description: 'Xem phim từ 1Phim6 — Phim Bộ, Phim Lẻ, Hoạt Hình, Thuyết Minh',
   logo: 'https://www.1phim19.com/favicon.ico',
@@ -110,7 +110,11 @@ builder.defineStreamHandler(async ({ type, id }) => {
   if (!id.startsWith('1phim6:')) return { streams: [] };
   try {
     const slug = id.replace('1phim6:', '');
-    const epUrl = `https://www.1phim19.com/${slug}`;
+    // Chuyển slug dạng phim__ten-phim__tap-1 → phim/ten-phim/tap-1
+    const path = phim.fromEpSlug(slug);
+    const epUrl = `https://www.1phim19.com/${path}`;
+    console.log('[stream] epUrl:', epUrl);
+
     const data = await phim.getStream(epUrl);
     if (!data) {
       return { streams: [{
@@ -118,6 +122,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
         title: '🔗 Mở 1Phim6',
       }]};
     }
+
     return { streams: [{
       url: data.streamUrl,
       title: '▶ 1Phim6 HLS',
