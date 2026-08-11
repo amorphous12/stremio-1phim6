@@ -9,7 +9,7 @@ const forge = require('node-forge');
 const listCache = new NodeCache({ stdTTL: 600 });
 const detailCache = new NodeCache({ stdTTL: 300 });
 
-const BASE = 'https://www.1phim6.com';
+const BASE = 'https://www.1phim19.com';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 const jar = new CookieJar();
@@ -80,21 +80,22 @@ function parseList(html) {
   const items = [];
   const seen = new Set();
 
-  $('li').each((i, el) => {
+  $('ul.list-film li').each((i, el) => {
     const $el = $(el);
     const a = $el.find('a[title][href]').first();
     if (!a.length) return;
     const href = a.attr('href') || '';
-    if (!href.includes('1phim6.com') && !href.startsWith('/')) return;
-    const title = (a.attr('title') || a.text()).trim();
-    if (!title) return;
+    const title = a.attr('title') || a.text().trim();
+    if (!title || !href.includes('/phim/')) return;
     const url = href.startsWith('http') ? href : BASE + href;
-    const slug = url.replace(/^https?:\/\/[^/]+\//, '').replace(/\/$/, '');
-    if (!slug || seen.has(slug)) return;
+    const rawSlug = href.replace(/^.*\/phim\//, '').replace(/\/$/, '');
+    const slug = `phim/${rawSlug}`;
+    if (!rawSlug || seen.has(slug)) return;
     seen.add(slug);
     const thumb = $el.find('img').first().attr('src') || '';
-    const year = ($el.text().match(/\b(19|20)\d{2}\b/) || [])[0] || '';
-    items.push({ slug, title, thumb, url, year });
+    const year = ($el.find('.name').text().match(/\b(20|19)\d{2}\b/) || [])[0] || '';
+    const status = $el.find('.status').text().trim();
+    items.push({ slug, title, thumb, url, year, status });
   });
 
   console.log(`[1Phim6] parseList → ${items.length} items`);
@@ -116,7 +117,8 @@ async function getList(action = 'phim-bo', page = 1) {
 async function getByCountry(countryCode, page = 1) {
   const key = `country_${countryCode}_${page}`;
   const c = listCache.get(key); if (c) return c;
-  const url = `${BASE}/index.php?do=phim&act=searchs&country=${countryCode}&page=${page}`;
+  let url = `${BASE}/quoc-gia/${countryCode}/`;
+  if (page > 1) url += `?page=${page}`;
   console.log('[1Phim6] getByCountry:', url);
   const html = await fetchHtml(url);
   const r = parseList(html);
@@ -157,11 +159,13 @@ async function getEpisodes(movieUrl) {
   if (!html) return [];
   const $ = cheerio.load(html);
   const eps = [];
+
   const tapBlock = $('.page-tap');
   if (!tapBlock.length) {
     const slug = movieUrl.replace(/^https?:\/\/[^/]+\//, '').replace(/\/$/, '');
     return [{ label: 'Tập 1', url: movieUrl, slug, num: 1 }];
   }
+
   tapBlock.find('a').each((i, el) => {
     const href = $(el).attr('href') || '';
     const label = $(el).find('span').text().trim() || $(el).text().trim();
@@ -171,6 +175,7 @@ async function getEpisodes(movieUrl) {
     const num = numMatch ? parseInt(numMatch[0]) : i + 1;
     eps.push({ label, url: epUrl, slug: epSlug, num });
   });
+
   detailCache.set(key, eps);
   return eps;
 }
@@ -184,25 +189,28 @@ async function getStream(epUrl) {
   if (!html) return null;
 
   let streamUrl = null;
+
+  // Giải mã CryptoJS AES → vpm.php?v=HASH
   const playerUrl = extractPlayerUrl(html);
   if (playerUrl) {
     const hashMatch = playerUrl.match(/[?&]v=([a-f0-9]{32})/);
     if (hashMatch) {
       streamUrl = `${BASE}/pmm2/${hashMatch[1]}.m3u8`;
-      console.log('[1Phim6] stream URL:', streamUrl);
+      console.log('[1Phim6] stream via CryptoJS:', streamUrl);
     }
   }
 
+  // Fallback: tìm vpm.php trực tiếp
   if (!streamUrl) {
     const vpmMatch = html.match(/vpm\.php\?v=([a-f0-9]{32})/);
     if (vpmMatch) {
       streamUrl = `${BASE}/pmm2/${vpmMatch[1]}.m3u8`;
-      console.log('[1Phim6] stream URL (fallback):', streamUrl);
+      console.log('[1Phim6] stream via fallback regex:', streamUrl);
     }
   }
 
   if (!streamUrl) {
-    console.error('[1Phim6] stream URL not found for:', epUrl);
+    console.error('[1Phim6] stream not found for:', epUrl);
     return null;
   }
 
@@ -218,16 +226,17 @@ async function getStream(epUrl) {
 async function getDetail(slug) {
   const key = `detail_${slug}`;
   const c = detailCache.get(key); if (c) return c;
-  const url = `${BASE}/${slug}/`;
+  const url = `${BASE}/${slug}`;
+  console.log('[1Phim6] getDetail:', url);
   const html = await fetchHtml(url);
   if (!html) return null;
   const $ = cheerio.load(html);
-  const title = $('h1, .movie-title').first().text().trim()
+  const title = $('h1').first().text().trim()
     || $('title').text().split(' - ')[0].trim();
   const thumb = $('meta[property="og:image"]').attr('content') || '';
   const desc  = $('meta[property="og:description"]').attr('content')
     || $('.description, .movie-desc').first().text().trim() || '';
-  const year = ($('.year').text().match(/\d{4}/) || [])[0] || '';
+  const year = ($('.name').text().match(/\b(20|19)\d{2}\b/) || [])[0] || '';
   const genres = [];
   $('a[href*="/the-loai/"]').each((i, el) => {
     const g = $(el).text().trim();
@@ -245,7 +254,7 @@ function toMeta(item) {
     name: item.title || item.slug,
     poster: item.thumb || '',
     background: item.thumb || '',
-    description: item.desc || '',
+    description: item.desc || item.status || '',
     year: item.year ? parseInt(item.year) : undefined,
     genres: item.genres || [],
     language: 'vi',
