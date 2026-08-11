@@ -73,6 +73,30 @@ function extractPlayerUrl(html) {
   return cryptoJsAesDecrypt('Encrypt', encJson);
 }
 
+// ── Slug helpers ─────────────────────────────────────────────────────────────
+// Dùng __ thay / để tránh conflict khi Stremio parse ID
+function toSlug(href) {
+  // href dạng /phim/ten-phim hoặc https://...../phim/ten-phim
+  const raw = href.replace(/^.*\/phim\//, '').replace(/\/$/, '');
+  return `phim__${raw}`;
+}
+
+function fromSlug(slug) {
+  // Chuyển phim__ten-phim → phim/ten-phim
+  return slug.replace('phim__', 'phim/');
+}
+
+function toEpSlug(href) {
+  // href dạng /phim/ten-phim/tap-1 hoặc full URL
+  const path = href.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '');
+  // /phim/ten-phim/tap-1 → phim__ten-phim__tap-1
+  return path.replace(/^\//, '').replace(/\//g, '__');
+}
+
+function fromEpSlug(slug) {
+  return slug.replace(/__/g, '/');
+}
+
 // ── Parse danh sách phim ──────────────────────────────────────────────────────
 function parseList(html) {
   if (!html) return [];
@@ -88,9 +112,8 @@ function parseList(html) {
     const title = a.attr('title') || a.text().trim();
     if (!title || !href.includes('/phim/')) return;
     const url = href.startsWith('http') ? href : BASE + href;
-    const rawSlug = href.replace(/^.*\/phim\//, '').replace(/\/$/, '');
-    const slug = `phim/${rawSlug}`;
-    if (!rawSlug || seen.has(slug)) return;
+    const slug = toSlug(href);
+    if (!slug || seen.has(slug)) return;
     seen.add(slug);
     const thumb = $el.find('img').first().attr('src') || '';
     const year = ($el.find('.name').text().match(/\b(20|19)\d{2}\b/) || [])[0] || '';
@@ -162,7 +185,7 @@ async function getEpisodes(movieUrl) {
 
   const tapBlock = $('.page-tap');
   if (!tapBlock.length) {
-    const slug = movieUrl.replace(/^https?:\/\/[^/]+\//, '').replace(/\/$/, '');
+    const slug = toEpSlug(movieUrl.replace(BASE, ''));
     return [{ label: 'Tập 1', url: movieUrl, slug, num: 1 }];
   }
 
@@ -170,10 +193,10 @@ async function getEpisodes(movieUrl) {
     const href = $(el).attr('href') || '';
     const label = $(el).find('span').text().trim() || $(el).text().trim();
     const epUrl = href.startsWith('http') ? href : BASE + href;
-    const epSlug = epUrl.replace(/^https?:\/\/[^/]+\//, '').replace(/\/$/, '');
+    const slug = toEpSlug(epUrl.replace(BASE, ''));
     const numMatch = label.match(/\d+/);
     const num = numMatch ? parseInt(numMatch[0]) : i + 1;
-    eps.push({ label, url: epUrl, slug: epSlug, num });
+    eps.push({ label, url: epUrl, slug, num });
   });
 
   detailCache.set(key, eps);
@@ -190,7 +213,6 @@ async function getStream(epUrl) {
 
   let streamUrl = null;
 
-  // Giải mã CryptoJS AES → vpm.php?v=HASH
   const playerUrl = extractPlayerUrl(html);
   if (playerUrl) {
     const hashMatch = playerUrl.match(/[?&]v=([a-f0-9]{32})/);
@@ -200,12 +222,11 @@ async function getStream(epUrl) {
     }
   }
 
-  // Fallback: tìm vpm.php trực tiếp
   if (!streamUrl) {
     const vpmMatch = html.match(/vpm\.php\?v=([a-f0-9]{32})/);
     if (vpmMatch) {
       streamUrl = `${BASE}/pmm2/${vpmMatch[1]}.m3u8`;
-      console.log('[1Phim6] stream via fallback regex:', streamUrl);
+      console.log('[1Phim6] stream via fallback:', streamUrl);
     }
   }
 
@@ -226,7 +247,8 @@ async function getStream(epUrl) {
 async function getDetail(slug) {
   const key = `detail_${slug}`;
   const c = detailCache.get(key); if (c) return c;
-  const url = `${BASE}/${slug}`;
+  const path = fromSlug(slug);
+  const url = `${BASE}/${path}`;
   console.log('[1Phim6] getDetail:', url);
   const html = await fetchHtml(url);
   if (!html) return null;
@@ -290,5 +312,6 @@ const COUNTRIES = [
 module.exports = {
   getList, getByCountry, getByGenre, search,
   getEpisodes, getStream, getDetail, toMeta,
+  fromSlug, fromEpSlug,
   GENRES, COUNTRIES,
 };
