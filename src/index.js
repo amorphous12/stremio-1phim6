@@ -2,43 +2,46 @@
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const phim = require('./1phim6');
 
-const GENRE_NAMES = phim.GENRES.map(g => g.name);
-const COUNTRY_NAMES = phim.COUNTRIES.map(c => c.name);
+const GENRE_NAMES    = phim.GENRES.map(g => g.name);
+const COUNTRY_NAMES  = phim.COUNTRIES.map(c => c.name);
+const GENRE_MAP      = {};
+phim.GENRES.forEach(g => { GENRE_MAP[g.name] = g.slug; });
+const COUNTRY_MAP    = {};
+phim.COUNTRIES.forEach(c => { COUNTRY_MAP[c.name] = c.code; });
 
 const EXTRA_BASE = [{ name: 'skip' }, { name: 'search' }];
 const EXTRA_FULL = [
   { name: 'skip' },
   { name: 'search' },
-  { name: 'genre', options: GENRE_NAMES },
+  { name: 'genre',   options: GENRE_NAMES },
   { name: 'country', options: COUNTRY_NAMES },
 ];
 
 const manifest = {
   id: 'community.1phim6.com',
-  version: '1.0.0',
+  version: '1.1.0',
   name: '1Phim6',
   description: 'Xem phim từ 1Phim6 — Phim Bộ, Phim Lẻ, Hoạt Hình, Thuyết Minh',
   logo: 'https://www.1phim6.com/favicon.ico',
   catalogs: [
-    { id: 'phimbo',    type: 'movie', name: '📺 Phim Bộ',          extra: EXTRA_FULL },
-    { id: 'phimle',    type: 'movie', name: '🎬 Phim Lẻ',          extra: EXTRA_FULL },
-    { id: 'hoathinh',  type: 'movie', name: '🎌 Hoạt Hình',        extra: EXTRA_BASE },
-    { id: 'tvshow',    type: 'movie', name: '📡 TV Shows',          extra: EXTRA_BASE },
-    { id: 'thuyetminh',type: 'movie', name: '🎙️ Thuyết Minh',      extra: EXTRA_BASE },
-    { id: 'longtieng', type: 'movie', name: '🔊 Lồng Tiếng',       extra: EXTRA_BASE },
-    { id: 'hanquoc',   type: 'movie', name: '🇰🇷 Phim Hàn',         extra: EXTRA_BASE },
-    { id: 'trungquoc', type: 'movie', name: '🇨🇳 Phim Trung',       extra: EXTRA_BASE },
-    { id: 'aumi',      type: 'movie', name: '🇺🇸 Phim Âu Mỹ',       extra: EXTRA_BASE },
-    { id: 'nhatban',   type: 'movie', name: '🇯🇵 Phim Nhật',         extra: EXTRA_BASE },
-    { id: 'hongkong',  type: 'movie', name: '🇭🇰 Phim Hồng Kông',    extra: EXTRA_BASE },
-    { id: 'vietsubmoi',type: 'movie', name: '🔥 Vietsub Mới',       extra: EXTRA_BASE },
+    { id: 'phimbo',     type: 'movie', name: '📺 Phim Bộ',        extra: EXTRA_FULL },
+    { id: 'phimle',     type: 'movie', name: '🎬 Phim Lẻ',        extra: EXTRA_FULL },
+    { id: 'hoathinh',   type: 'movie', name: '🎌 Hoạt Hình',      extra: EXTRA_BASE },
+    { id: 'tvshow',     type: 'movie', name: '📡 TV Shows',        extra: EXTRA_BASE },
+    { id: 'thuyetminh', type: 'movie', name: '🎙️ Thuyết Minh',    extra: EXTRA_BASE },
+    { id: 'longtieng',  type: 'movie', name: '🔊 Lồng Tiếng',     extra: EXTRA_BASE },
+    { id: 'hanquoc',    type: 'movie', name: '🇰🇷 Phim Hàn',       extra: EXTRA_BASE },
+    { id: 'trungquoc',  type: 'movie', name: '🇨🇳 Phim Trung',     extra: EXTRA_BASE },
+    { id: 'aumi',       type: 'movie', name: '🇺🇸 Phim Âu Mỹ',     extra: EXTRA_BASE },
+    { id: 'nhatban',    type: 'movie', name: '🇯🇵 Phim Nhật',       extra: EXTRA_BASE },
+    { id: 'hongkong',   type: 'movie', name: '🇭🇰 Phim Hồng Kông',  extra: EXTRA_BASE },
+    { id: 'vietsubmoi', type: 'movie', name: '🔥 Vietsub Mới',     extra: EXTRA_BASE },
   ],
   resources: ['catalog', 'meta', 'stream'],
   types: ['movie'],
   idPrefixes: ['1phim6:'],
 };
 
-// Map catalog ID → action/slug
 const CATALOG_MAP = {
   'phimbo':     { type: 'list', action: 'phim-bo' },
   'phimle':     { type: 'list', action: 'phim-le' },
@@ -54,14 +57,6 @@ const CATALOG_MAP = {
   'vietsubmoi': { type: 'list', action: 'phim-vietsub' },
 };
 
-// Map genre name → slug
-const GENRE_MAP = {};
-phim.GENRES.forEach(g => { GENRE_MAP[g.name] = g.slug; });
-
-// Map country name → code
-const COUNTRY_MAP = {};
-phim.COUNTRIES.forEach(c => { COUNTRY_MAP[c.name] = c.code; });
-
 const builder = new addonBuilder(manifest);
 
 builder.defineCatalogHandler(async ({ type, id, extra }) => {
@@ -69,11 +64,7 @@ builder.defineCatalogHandler(async ({ type, id, extra }) => {
   let items = [];
   try {
     if (extra.search) {
-      const [r] = await phim.search(extra.search, page);
-      items = r || await phim.search(extra.search, page);
-      // search trả về [items, hasNext]
-      const result = await phim.search(extra.search, page);
-      items = Array.isArray(result) ? (Array.isArray(result[0]) ? result[0] : result) : [];
+      items = await phim.search(extra.search, page);
     } else if (extra.genre && GENRE_MAP[extra.genre]) {
       items = await phim.getByGenre(GENRE_MAP[extra.genre], page);
     } else if (extra.country && COUNTRY_MAP[extra.country]) {
@@ -81,11 +72,13 @@ builder.defineCatalogHandler(async ({ type, id, extra }) => {
     } else {
       const cat = CATALOG_MAP[id];
       if (!cat) return { metas: [] };
-      if (cat.type === 'list') items = await phim.getList(cat.action, page);
-      else if (cat.type === 'country') items = await phim.getByCountry(cat.code, page);
+      if (cat.type === 'list') {
+        items = await phim.getList(cat.action, page);
+      } else if (cat.type === 'country') {
+        items = await phim.getByCountry(cat.code, page);
+      }
     }
-    // getList trả về [items, hasNext] hoặc chỉ items
-    if (Array.isArray(items) && Array.isArray(items[0])) items = items[0];
+    if (!Array.isArray(items)) items = [];
     return { metas: items.map(phim.toMeta) };
   } catch(e) {
     console.error('[catalog] error:', e.message);
@@ -99,10 +92,7 @@ builder.defineMetaHandler(async ({ type, id }) => {
     const slug = id.replace('1phim6:', '');
     const data = await phim.getDetail(slug);
     if (!data) return { meta: null };
-
     const meta = phim.toMeta(data);
-
-    // Lấy danh sách tập cho series
     const eps = await phim.getEpisodes(data.url);
     if (eps.length > 1) {
       meta.videos = eps.map(ep => ({
@@ -112,7 +102,6 @@ builder.defineMetaHandler(async ({ type, id }) => {
         episode: ep.num,
       }));
     }
-
     return { meta };
   } catch(e) { return { meta: null }; }
 });
@@ -123,14 +112,12 @@ builder.defineStreamHandler(async ({ type, id }) => {
     const slug = id.replace('1phim6:', '');
     const epUrl = `https://www.1phim6.com/${slug}/`;
     const data = await phim.getStream(epUrl);
-
     if (!data) {
       return { streams: [{
         externalUrl: epUrl,
         title: '🔗 Mở 1Phim6',
       }]};
     }
-
     return { streams: [{
       url: data.streamUrl,
       title: '▶ 1Phim6 HLS',
