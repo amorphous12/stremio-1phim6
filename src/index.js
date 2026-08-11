@@ -2,11 +2,11 @@
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const phim = require('./1phim6');
 
-const GENRE_NAMES    = phim.GENRES.map(g => g.name);
-const COUNTRY_NAMES  = phim.COUNTRIES.map(c => c.name);
-const GENRE_MAP      = {};
+const GENRE_NAMES   = phim.GENRES.map(g => g.name);
+const COUNTRY_NAMES = phim.COUNTRIES.map(c => c.name);
+const GENRE_MAP     = {};
 phim.GENRES.forEach(g => { GENRE_MAP[g.name] = g.slug; });
-const COUNTRY_MAP    = {};
+const COUNTRY_MAP   = {};
 phim.COUNTRIES.forEach(c => { COUNTRY_MAP[c.name] = c.code; });
 
 const EXTRA_BASE = [{ name: 'skip' }, { name: 'search' }];
@@ -19,10 +19,10 @@ const EXTRA_FULL = [
 
 const manifest = {
   id: 'community.1phim6.com',
-  version: '1.1.0',
+  version: '1.2.0',
   name: '1Phim6',
   description: 'Xem phim từ 1Phim6 — Phim Bộ, Phim Lẻ, Hoạt Hình, Thuyết Minh',
-  logo: 'https://www.1phim6.com/favicon.ico',
+  logo: 'https://www.1phim19.com/favicon.ico',
   catalogs: [
     { id: 'phimbo',     type: 'movie', name: '📺 Phim Bộ',        extra: EXTRA_FULL },
     { id: 'phimle',     type: 'movie', name: '🎬 Phim Lẻ',        extra: EXTRA_FULL },
@@ -47,14 +47,14 @@ const CATALOG_MAP = {
   'phimle':     { type: 'list', action: 'phim-le' },
   'hoathinh':   { type: 'list', action: 'phim-hoat-hinh' },
   'tvshow':     { type: 'list', action: 'tv-show' },
-  'thuyetminh': { type: 'list', action: 'phim-thuyet-minh' },
-  'longtieng':  { type: 'list', action: 'phim-long-tieng' },
+  'thuyetminh': { type: 'list', action: 'tim-phim-thuyet-minh' },
+  'longtieng':  { type: 'list', action: 'tim-phim-long-tieng' },
   'hanquoc':    { type: 'country', code: 'kr' },
   'trungquoc':  { type: 'country', code: 'cn' },
   'aumi':       { type: 'country', code: 'us' },
   'nhatban':    { type: 'country', code: 'jp' },
   'hongkong':   { type: 'country', code: 'hk' },
-  'vietsubmoi': { type: 'list', action: 'phim-vietsub' },
+  'vietsubmoi': { type: 'list', action: 'tim-phim-vietsub' },
 };
 
 const builder = new addonBuilder(manifest);
@@ -110,7 +110,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
   if (!id.startsWith('1phim6:')) return { streams: [] };
   try {
     const slug = id.replace('1phim6:', '');
-    const epUrl = `https://www.1phim6.com/${slug}/`;
+    const epUrl = `https://www.1phim19.com/${slug}`;
     const data = await phim.getStream(epUrl);
     if (!data) {
       return { streams: [{
@@ -124,7 +124,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
       behaviorHints: {
         notWebReady: false,
         headers: {
-          'Referer': 'https://www.1phim6.com/',
+          'Referer': 'https://www.1phim19.com/',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         },
       },
